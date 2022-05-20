@@ -6,6 +6,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateUserDto } from './dto/createUser.dto';
 import { UserType } from './types/user.type';
 import { IUserResponse } from './types/user-response.interface';
+import { LoginUserDto } from './dto/login-user.dto';
 
 @Injectable()
 export class UserService {
@@ -37,6 +38,7 @@ export class UserService {
         hashPassword,
       },
     });
+    delete newUser.password;
     delete newUser.hashPassword;
     return newUser;
   }
@@ -45,6 +47,41 @@ export class UserService {
     const salt = await Bcrypt.genSalt(10);
     const hashPassword = await Bcrypt.hash(password, salt);
     return hashPassword;
+  }
+
+  async findUserById(id: number) {
+    return await this.prisma.user.findUnique({
+      where: {
+        id: id,
+      },
+    });
+  }
+
+  async login(loginUserDto: LoginUserDto) {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        email: loginUserDto.email,
+      },
+    });
+    if (!user) {
+      throw new HttpException(
+        'Credentials are not valid',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+    const isPasswordCorrect = await Bcrypt.compare(
+      loginUserDto.password,
+      user.hashPassword,
+    );
+    if (!isPasswordCorrect) {
+      throw new HttpException(
+        'Credentials are not valid',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+    delete user.password;
+    delete user.hashPassword;
+    return user;
   }
 
   generateJwt(user: UserType): string {
